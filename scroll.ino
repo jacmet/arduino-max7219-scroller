@@ -18,8 +18,8 @@
 /* number of max7219 devices in chain */
 #define DEVICES		5
 
-/* line buffer (op + data for each device) */
-static byte line[DEVICES * 2];
+/* scroll speed (delay time in ms) */
+#define SCROLL_DELAY	50
 
 #define OP_NOOP		0
 #define OP_ROW0		1
@@ -71,7 +71,7 @@ static int char_width(char c)
 
 	c -= 32;
 
-	return pgm_read_byte(&font_width[c]);
+	return pgm_read_byte(&font_width[(byte)c]);
 }
 
 static int char_offset(char c)
@@ -81,7 +81,14 @@ static int char_offset(char c)
 
 	c -= 32;
 
-	return pgm_read_word(&font_offset[c]);
+	return pgm_read_word(&font_offset[(byte)c]);
+}
+
+static byte char_column(char c, byte i)
+{
+	int ofs = char_offset(c);
+
+	return pgm_read_byte(&font_data[ofs + i]);
 }
 
 static int str_width(const char *s)
@@ -94,6 +101,7 @@ static int str_width(const char *s)
 
 	return width;
 }
+
 
 void setup(void)
 {
@@ -115,32 +123,77 @@ void setup(void)
 
 	/* clear display */
 	for (i = 0; i < 8; i++)
-		send_cmd(i + 1, 1 << i);
+		send_cmd(i + 1, 0);
 
 	send_cmd(OP_SHUTDOWN, 1);
 }
 
-static int frame;
+static byte screen[8*DEVICES];
+
+//const char text[] = "              Hello world can you read what I write here? Is it scrolling too fast or ok?                ";
+const char text[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVW                               ";
+static byte cpos = 20; /* character position of left screen border */
+static byte ppos = 0; /* pixel (column) position of left screen border */
+
+static void scroll_refresh(void)
+{
+	byte cp, i, x, y, w;
+	char c;
+
+	/* clear screen */
+	for (i = 0; i < sizeof(screen); i++)
+		screen[i] = 0;
+
+	cp = cpos;
+	c = text[cp];
+	i = ppos;
+	w = char_width(c);
+	/* populate screen */
+	for (x = 0; x < (DEVICES * 8); x++) {
+		byte b = char_column(c, i);
+		byte mask = 1 << (x & 7);
+
+		for (y = 0; y < 8; y++) {
+			if (b & (1 << (7-y)))
+				screen[y*DEVICES + (x >> 3)] |= mask;
+		}
+
+		i++;
+
+		if (i >= w) {
+			cp++;
+			c = text[cp];
+			i = 0;
+			w = char_width(c);
+		}
+
+
+	}
+
+	/* send to display */
+	for (y = 0; y < 8; y++) {
+		digitalWrite(SPI_CS, LOW);
+
+		for (x = 0; x < DEVICES; x++) {
+			shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, y + 1);
+			shiftOut(SPI_MOSI, SPI_CLK, MSBFIRST, screen[y * DEVICES + x]);
+		}
+		digitalWrite(SPI_CS, HIGH);
+	}
+}
 
 void loop(void)
 {
-	int i, x, y;
+	scroll_refresh();
 
-	if (frame == 0) {
-		Serial.print(str_width("hello"));
-		for (y = 0; y < 8;  y++) {
-			for (i = 0; i < DEVICES: i += 2)
-				line[i] = y+1;
-		
+	ppos++;
+	if (ppos >= char_width(text[cpos])) {
+		ppos = 0;
+		cpos++;
+
+		if (cpos + DEVICES >= strlen(text))
+			power_down();
 	}
-	frame++;
 
-//	for (i = 0; i < 8; i++)
-//		send_cmd(i + 1, 1 << (i+frame));
-
-	delay(1000);
-	if (frame > 3) {
-		power_down();
-		Serial.print("powered down\n");
-	}
+	delay(SCROLL_DELAY);
 }
