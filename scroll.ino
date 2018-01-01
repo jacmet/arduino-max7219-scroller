@@ -9,6 +9,7 @@
 #endif
 
 #include "font.h"
+#include "msgs.h"
 
 /* gpios */
 #define SPI_MOSI	12
@@ -19,7 +20,7 @@
 #define DEVICES		5
 
 /* scroll speed (delay time in ms) */
-#define SCROLL_DELAY	50
+#define SCROLL_DELAY	70
 
 #define OP_NOOP		0
 #define OP_ROW0		1
@@ -35,6 +36,11 @@
 #define OP_SCANLIMIT	11
 #define OP_SHUTDOWN	12
 #define OP_DISPLAYTEST	15
+
+static byte screen[8*DEVICES];
+static char text[200];
+static byte cpos = 0; /* character position of left screen border */
+static byte ppos = 0; /* pixel (column) position of left screen border */
 
 static void send_cmd(byte cmd, byte val)
 {
@@ -102,6 +108,21 @@ static int str_width(const char *s)
 	return width;
 }
 
+static void setup_msg(void)
+{
+	int i;
+
+	for (i = 0; i < DEVICES * 2; i++)
+		text[i] = ' ';
+
+	randomSeed(analogRead(0) | (analogRead(1) << 8));
+
+	i = random(MSGS);
+
+	strcpy_P(&text[DEVICES*2], (char*)pgm_read_word(&(msgs[i])));
+
+	Serial.print(text); Serial.print("\r\n");
+}
 
 void setup(void)
 {
@@ -126,14 +147,9 @@ void setup(void)
 		send_cmd(i + 1, 0);
 
 	send_cmd(OP_SHUTDOWN, 1);
+
+	setup_msg();
 }
-
-static byte screen[8*DEVICES];
-
-//const char text[] = "              Hello world can you read what I write here? Is it scrolling too fast or ok?                ";
-const char text[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVW                               ";
-static byte cpos = 20; /* character position of left screen border */
-static byte ppos = 0; /* pixel (column) position of left screen border */
 
 static void scroll_refresh(void)
 {
@@ -191,7 +207,7 @@ void loop(void)
 		ppos = 0;
 		cpos++;
 
-		if (cpos + DEVICES >= strlen(text))
+		if (cpos >= strlen(text))
 			power_down();
 	}
 
