@@ -38,7 +38,7 @@
 #define OP_DISPLAYTEST	15
 
 static byte screen[8*DEVICES];
-static char text[200];
+static char text[256];
 static byte cpos = 0; /* character position of left screen border */
 static byte ppos = 0; /* pixel (column) position of left screen border */
 
