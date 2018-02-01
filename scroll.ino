@@ -167,7 +167,11 @@ static void scroll_refresh(void)
 	/* populate screen */
 	for (x = 0; x < (DEVICES * 8); x++) {
 		byte b = char_column(c, i);
+#ifdef REVERSE_ORDER
+		byte mask = 1 << (7 - (x & 7));
+#else
 		byte mask = 1 << (x & 7);
+#endif
 
 		for (y = 0; y < 8; y++) {
 			if (b & (1 << (7-y)))
