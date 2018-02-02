@@ -17,7 +17,9 @@
 #define SPI_CS		10
 
 /* number of max7219 devices in chain */
-#define DEVICES		5
+#define DEVICES		4
+/* x-axis is connected in reverse order */
+#define REVERSE_ORDER 1
 
 /* scroll speed (delay time in ms) */
 #define SCROLL_DELAY	70
